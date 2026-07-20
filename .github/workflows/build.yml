@@ -24,5 +24,5 @@ jobs:
         run: .\build.ps1
       - uses: actions/upload-artifact@v7
         with:
-          name: id14-volume-control-windows
-          path: dist/id14-volume-control.exe
+          name: audient-id-volume-control-windows
+          path: dist/audient-id-volume-control-windows.zip

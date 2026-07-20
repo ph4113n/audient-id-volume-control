@@ -17,11 +17,14 @@ from id14_volume import AudientError, AudientId14
 from volume_curve import MUTE_DB, db_to_percent, percent_to_db
 
 
-APP_NAME = "iD14 Volume Control"
-CONFIG_PATH = Path(os.environ.get("APPDATA", Path.home())) / "iD14 Volume" / "config.json"
+APP_NAME = "Audient iD Volume Control"
+CONFIG_ROOT = Path(os.environ.get("APPDATA", Path.home()))
+CONFIG_PATH = CONFIG_ROOT / "Audient iD Volume Control" / "config.json"
+PREVIOUS_CONFIG_PATH = CONFIG_ROOT / "iD14 Volume" / "config.json"
 LEGACY_CONFIG_PATH = Path(os.environ.get("APPDATA", Path.home())) / "id14-volume-tray.json"
 AUTOSTART_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-AUTOSTART_VALUE = "iD14 Volume Control"
+AUTOSTART_VALUE = "Audient iD Volume Control"
+PREVIOUS_AUTOSTART_VALUE = "iD14 Volume Control"
 HOTKEY_STEP = 5
 
 
@@ -31,7 +34,7 @@ class GlobalHotkeys(threading.Thread):
     WM_HOTKEY = 0x0312
 
     def __init__(self, root, louder, quieter, mute):
-        super().__init__(name="iD14 global hotkeys", daemon=True)
+        super().__init__(name="Audient iD global hotkeys", daemon=True)
         self.root = root
         self.callbacks = {1: louder, 2: quieter, 3: mute}
 
@@ -110,7 +113,7 @@ class VolumeOSD:
         self.fade_job = None
 
         muted = percent <= 0 or db <= MUTE_DB + 0.01
-        text = "iD14  ·  MUTE" if muted else f"iD14  ·  {percent}%  ·  {db:.1f} dB"
+        text = "Audient iD  ·  MUTE" if muted else f"Audient iD  ·  {percent}%  ·  {db:.1f} dB"
         accent = "#e65050" if muted else "#258bd2"
         self.canvas.delete("all")
         self._rounded_rect(
@@ -218,7 +221,7 @@ class TrayApp:
         self.device.__enter__()
 
     def _load_config(self):
-        for path in (CONFIG_PATH, LEGACY_CONFIG_PATH):
+        for path in (CONFIG_PATH, PREVIOUS_CONFIG_PATH, LEGACY_CONFIG_PATH):
             try:
                 return json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError, TypeError):
@@ -243,7 +246,7 @@ class TrayApp:
         frame.pack()
 
         tk.Label(
-            frame, text="Audient iD14 Main Volume",
+            frame, text="Audient iD Main Volume",
             fg="#f3f4f5", bg="#17191c", font=("Segoe UI Semibold", 11),
         ).pack(anchor="w")
         tk.Label(
@@ -384,8 +387,13 @@ class TrayApp:
     def is_autostart_enabled():
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_KEY) as key:
-                winreg.QueryValueEx(key, AUTOSTART_VALUE)
-            return True
+                for value_name in (AUTOSTART_VALUE, PREVIOUS_AUTOSTART_VALUE):
+                    try:
+                        winreg.QueryValueEx(key, value_name)
+                        return True
+                    except FileNotFoundError:
+                        continue
+            return False
         except OSError:
             return False
 
@@ -395,9 +403,12 @@ class TrayApp:
                 winreg.SetValueEx(
                     key, AUTOSTART_VALUE, 0, winreg.REG_SZ, self._startup_command()
                 )
-            else:
+            for value_name in (PREVIOUS_AUTOSTART_VALUE,) if enabled else (
+                AUTOSTART_VALUE,
+                PREVIOUS_AUTOSTART_VALUE,
+            ):
                 try:
-                    winreg.DeleteValue(key, AUTOSTART_VALUE)
+                    winreg.DeleteValue(key, value_name)
                 except FileNotFoundError:
                     pass
 
@@ -464,7 +475,7 @@ def main():
         root.withdraw()
         messagebox.showerror(
             APP_NAME,
-            f"Could not open the Audient iD14:\n{error}",
+            f"Could not open the Audient iD device:\n{error}",
         )
         root.destroy()
 
